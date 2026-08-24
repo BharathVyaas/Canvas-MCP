@@ -8,10 +8,10 @@ services:
     healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: 20
+        value: 20.19.5
       - key: RELAY_TOKEN
         generateValue: true
       - key: MCP_PUBLIC
-        value: false
+        value: true
       - key: BRIDGE_REQUEST_TIMEOUT_MS
         value: 120000
