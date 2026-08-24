@@ -53,6 +53,16 @@ let ws = null;
 
 const localTools = [
   {
+    name: 'canvas_connection_status',
+    description: 'Verify whether the configured Power Apps Canvas coauthoring session is currently reachable. Returns the configured environment/app IDs and a live connectivity check.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'canvas_reconnect',
+    description: 'Reconnect the Microsoft Canvas Authoring MCP to the bridge-configured Canvas App. This is locked to the configured app and cannot switch to another app.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
     name: 'canvas_sync_workspace',
     description: 'Sync the currently connected Canvas App into the bridge-managed local workspace. Use this before reading or searching YAML so the files reflect the current app state.',
     inputSchema: {
@@ -184,7 +194,43 @@ async function autoConnectCanvasApp() {
   if (result?.isError) {
     throw new Error(`Canvas connect failed: ${JSON.stringify(result.content || result)}`);
   }
+  connectedToCanvas = true;
   console.log('Canvas MCP connected to the Power Apps coauthoring session.');
+  return args;
+}
+
+async function verifyCanvasSession() {
+  const configured = parseStudioUrl(CANVAS_STUDIO_URL);
+  try {
+    const result = await canvasClient.callTool({ name: 'list_data_sources', arguments: {} });
+    if (result?.isError) {
+      connectedToCanvas = false;
+      return { connected: false, configured, error: result.content || result };
+    }
+    connectedToCanvas = true;
+    return { connected: true, configured };
+  } catch (error) {
+    connectedToCanvas = false;
+    return {
+      connected: false,
+      configured,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function ensureCanvasSession() {
+  const status = await verifyCanvasSession();
+  if (status.connected) return status;
+
+  console.log('Canvas coauthoring session is unavailable; reconnecting configured app...');
+  await autoConnectCanvasApp();
+
+  const verified = await verifyCanvasSession();
+  if (!verified.connected) {
+    throw new Error(`Canvas MCP reconnected but the live Power Apps Studio coauthoring session is still unavailable: ${JSON.stringify(verified.error || verified)}`);
+  }
+  return verified;
 }
 
 function buildExposedTools() {
@@ -289,6 +335,7 @@ function directoryArgumentsFor(toolName) {
 }
 
 async function callMicrosoftDirectoryTool(toolName) {
+  await ensureCanvasSession();
   await fs.mkdir(WORKSPACE_DIR, { recursive: true });
   const args = directoryArgumentsFor(toolName);
   return canvasClient.callTool({ name: toolName, arguments: args });
@@ -302,6 +349,17 @@ function textResult(value, isError = false) {
 }
 
 async function handleLocalTool(name, args = {}) {
+  if (name === 'canvas_connection_status') {
+    return textResult(await verifyCanvasSession());
+  }
+
+  if (name === 'canvas_reconnect') {
+    await autoConnectCanvasApp();
+    const status = await verifyCanvasSession();
+    if (!status.connected) return textResult(status, true);
+    return textResult(status);
+  }
+
   if (name === 'canvas_sync_workspace') {
     await fs.mkdir(WORKSPACE_DIR, { recursive: true });
     if (args.clearFirst !== false) await clearYamlFiles();
@@ -418,6 +476,7 @@ async function handleCall(name, args) {
 
   const tool = microsoftTools.find((item) => item.name === name);
   if (!tool) throw new Error(`Tool '${name}' is unavailable.`);
+  await ensureCanvasSession();
   return canvasClient.callTool({ name, arguments: args || {} });
 }
 
