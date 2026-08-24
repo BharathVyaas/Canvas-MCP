@@ -1,13 +1,15 @@
+import 'dotenv/config';
 import process from 'node:process';
+import path from 'node:path';
 import { WebSocket } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const REMOTE_URL = process.env.REMOTE_URL;
-const RELAY_TOKEN = process.env.RELAY_TOKEN;
-const DNX_COMMAND = process.env.DNX_COMMAND || 'dnx';
+const REMOTE_URL = "wss://canvas-mcp-q5dn.onrender.com/bridge";
+const RELAY_TOKEN = "a54f83a70c4ef19e26c9b4c69f6a5938bf8e5046778c7e78ef14d7cb847d92ca";
+const DNX_COMMAND = process.env.DNX_COMMAND || 'dotnet';
 const RECONNECT_MS = Number(process.env.RECONNECT_MS || 3000);
-const CANVAS_STUDIO_URL = process.env.CANVAS_STUDIO_URL || '';
+const CANVAS_STUDIO_URL = "https://make.powerapps.com/e/ecfe462f-6fea-e517-9265-b51708689fd0/canvas/?action=edit&connector-type=shared_sharepointonline&table-name=3011b869-44a7-4270-b02d-bd07906885d4&dataset-name=https%3A%2F%2Fpisquaretechnology.sharepoint.com%2Fsites%2FTimesheetMBLPOC&connection-name=shared-sharepointonl-ba63b691-d5c9-4473-ba99-02992833732c&template-type=MobileThreeScreen&referrer=AppsPage&app-id=%2Fproviders%2FMicrosoft.PowerApps%2Fapps%2Fd62913fb-3716-4c40-8e95-27f8dcd19660" || '';
 const CANVAS_AUTH_FLOW = process.env.CANVAS_AUTH_FLOW || '';
 const CANVAS_LOGIN_HINT = process.env.CANVAS_LOGIN_HINT || '';
 const CANVAS_TENANT_ID = process.env.CANVAS_TENANT_ID || '';
@@ -23,9 +25,12 @@ if (!RELAY_TOKEN) {
 }
 
 const canvasClient = new Client({ name: 'canvas-mcp-local-bridge', version: '1.0.0' });
+const dnxPrefixArgs = path.basename(DNX_COMMAND).toLowerCase().startsWith('dotnet') ? ['dnx'] : [];
+
 const stdio = new StdioClientTransport({
   command: DNX_COMMAND,
   args: [
+    ...dnxPrefixArgs,
     'Microsoft.PowerApps.CanvasAuthoring.McpServer',
     '--yes',
     '--prerelease',
@@ -166,8 +171,8 @@ async function run() {
 
 async function shutdown() {
   shuttingDown = true;
-  try { ws?.close(); } catch {}
-  try { await canvasClient.close(); } catch {}
+  try { ws?.close(); } catch { }
+  try { await canvasClient.close(); } catch { }
   process.exit(0);
 }
 

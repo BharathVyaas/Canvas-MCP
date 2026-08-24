@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import express from 'express';
@@ -11,12 +12,12 @@ import {
 import Ajv from 'ajv';
 
 const PORT = Number(process.env.PORT || 10000);
-const RELAY_TOKEN = process.env.RELAY_TOKEN || '';
+const RELAY_TOKEN = "a54f83a70c4ef19e26c9b4c69f6a5938bf8e5046778c7e78ef14d7cb847d92ca" || '';
 const MCP_PUBLIC = String(process.env.MCP_PUBLIC || 'false').toLowerCase() === 'true';
 const REQUEST_TIMEOUT_MS = Number(process.env.BRIDGE_REQUEST_TIMEOUT_MS || 120000);
 
-if (!MCP_PUBLIC && !RELAY_TOKEN) {
-  console.error('RELAY_TOKEN is required unless MCP_PUBLIC=true');
+if (!RELAY_TOKEN) {
+  console.error('RELAY_TOKEN is required for the local bridge connection.');
   process.exit(1);
 }
 
@@ -49,17 +50,23 @@ function extractToken(req) {
   }
 }
 
-function isAuthorized(req) {
-  if (MCP_PUBLIC) return true;
+function hasRelayToken(req) {
   const token = extractToken(req);
   return Boolean(token && timingSafeEqualText(token, RELAY_TOKEN));
 }
 
-function authMiddleware(req, res, next) {
-  if (!isAuthorized(req)) {
+function bridgeAuthMiddleware(req, res, next) {
+  if (!hasRelayToken(req)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
+}
+
+function mcpAuthMiddleware(req, res, next) {
+  if (MCP_PUBLIC || hasRelayToken(req)) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Unauthorized' });
 }
 
 function bridgeReady() {
@@ -108,7 +115,7 @@ function callBridge(name, args) {
 
 wss.on('connection', (socket) => {
   if (bridgeReady()) {
-    try { bridge.close(4001, 'A newer bridge connected'); } catch {}
+    try { bridge.close(4001, 'A newer bridge connected'); } catch { }
   }
 
   bridge = socket;
@@ -165,7 +172,7 @@ server.on('upgrade', (req, socket, head) => {
     socket.destroy();
     return;
   }
-  if (!isAuthorized(req)) {
+  if (!hasRelayToken(req)) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     socket.destroy();
     return;
@@ -187,11 +194,11 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ ok: true, bridgeConnected: bridgeReady(), toolCount: tools.length });
 });
 
-app.get('/status', authMiddleware, (_req, res) => {
+app.get('/status', bridgeAuthMiddleware, (_req, res) => {
   res.json({ bridgeConnected: bridgeReady(), toolCount: tools.length, tools: tools.map((tool) => tool.name) });
 });
 
-app.all('/mcp', authMiddleware, async (req, res) => {
+app.all('/mcp', mcpAuthMiddleware, async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).set('Allow', 'POST').json({ error: 'Use POST for stateless Streamable HTTP MCP.' });
   }
@@ -259,8 +266,8 @@ app.all('/mcp', authMiddleware, async (req, res) => {
       });
     }
   } finally {
-    try { await transport.close(); } catch {}
-    try { await mcp.close(); } catch {}
+    try { await transport.close(); } catch { }
+    try { await mcp.close(); } catch { }
   }
 });
 
