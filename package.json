@@ -1,0 +1,20 @@
+{
+  "name": "canvas-mcp-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "bridge": "node src/local-bridge.js",
+    "check": "node --check src/server.js && node --check src/local-bridge.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "ajv": "^8.17.1",
+    "express": "^5.1.0",
+    "ws": "^8.18.3"
+  }
+}
