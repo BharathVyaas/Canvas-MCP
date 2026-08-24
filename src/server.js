@@ -11,8 +11,8 @@ import {
 import Ajv from 'ajv';
 
 const PORT = Number(process.env.PORT || 10000);
-const RELAY_TOKEN = "a54f83a70c4ef19e26c9b4c69f6a5938bf8e5046778c7e78ef14d7cb847d92ca" || '';
-const MCP_PUBLIC = String(process.env.MCP_PUBLIC || 'true').toLowerCase() === 'true';
+const RELAY_TOKEN = 'a54f83a70c4ef19e26c9b4c69f6a5938bf8e5046778c7e78ef14d7cb847d92ca';
+const MCP_PUBLIC = true;
 const REQUEST_TIMEOUT_MS = Number(process.env.BRIDGE_REQUEST_TIMEOUT_MS || 120000);
 
 if (!RELAY_TOKEN) {

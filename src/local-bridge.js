@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import process from 'node:process';
 import path from 'node:path';
 import fs from 'node:fs/promises';
@@ -6,30 +5,17 @@ import { WebSocket } from 'ws';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const REMOTE_URL = "wss://canvas-mcp-q5dn.onrender.com/bridge";
-const RELAY_TOKEN = "a54f83a70c4ef19e26c9b4c69f6a5938bf8e5046778c7e78ef14d7cb847d92ca";
-const DNX_COMMAND = process.env.DNX_COMMAND || 'dotnet';
-const RECONNECT_MS = Number(process.env.RECONNECT_MS || 3000);
-const CANVAS_STUDIO_URL = "https://make.powerapps.com/e/ecfe462f-6fea-e517-9265-b51708689fd0/canvas/?action=edit&connector-type=shared_sharepointonline&table-name=3011b869-44a7-4270-b02d-bd07906885d4&dataset-name=https%3A%2F%2Fpisquaretechnology.sharepoint.com%2Fsites%2FTimesheetMBLPOC&connection-name=shared-sharepointonl-ba63b691-d5c9-4473-ba99-02992833732c&template-type=MobileThreeScreen&referrer=AppsPage&app-id=%2Fproviders%2FMicrosoft.PowerApps%2Fapps%2Fd62913fb-3716-4c40-8e95-27f8dcd19660" || '';
-const CANVAS_AUTH_FLOW = process.env.CANVAS_AUTH_FLOW || '';
-const CANVAS_LOGIN_HINT = process.env.CANVAS_LOGIN_HINT || '';
-const CANVAS_TENANT_ID = process.env.CANVAS_TENANT_ID || '';
-const CANVAS_FORCE_ACCOUNT_SELECT = String(process.env.CANVAS_FORCE_ACCOUNT_SELECT || 'false').toLowerCase() === 'true';
-const CANVAS_ALLOW_WRITES = String(process.env.CANVAS_ALLOW_WRITES || 'true').toLowerCase() === 'true';
-const WORKSPACE_DIR = path.resolve(process.env.CANVAS_WORKSPACE_DIR || path.join(process.cwd(), '.canvas-mcp-workspace'));
-const MAX_READ_LINES = Number(process.env.CANVAS_MAX_READ_LINES || 800);
-const MAX_SEARCH_RESULTS = Number(process.env.CANVAS_MAX_SEARCH_RESULTS || 300);
+const REMOTE_URL = 'wss://canvas-mcp-q5dn.onrender.com/bridge';
+const RELAY_TOKEN = 'a54f83a70c4ef19e26c9b4c69f6a5938bf8e5046778c7e78ef14d7cb847d92ca';
+const DNX_COMMAND = 'dotnet';
+const RECONNECT_MS = 3000;
+const CANVAS_STUDIO_URL = 'https://make.powerapps.com/e/ecfe462f-6fea-e517-9265-b51708689fd0/canvas/?action=edit&connector-type=shared_sharepointonline&table-name=3011b869-44a7-4270-b02d-bd07906885d4&dataset-name=https%3A%2F%2Fpisquaretechnology.sharepoint.com%2Fsites%2FTimesheetMBLPOC&connection-name=shared-sharepointonl-ba63b691-d5c9-4473-ba99-02992833732c&template-type=MobileThreeScreen&referrer=AppsPage&app-id=%2Fproviders%2FMicrosoft.PowerApps%2Fapps%2Fd62913fb-3716-4c40-8e95-27f8dcd19660';
+const CANVAS_ALLOW_WRITES = true;
+const WORKSPACE_DIR = path.resolve(path.join(process.cwd(), '.canvas-mcp-workspace'));
+const MAX_READ_LINES = 800;
+const MAX_SEARCH_RESULTS = 300;
 
-if (!REMOTE_URL) {
-  console.error('REMOTE_URL is required, e.g. wss://your-service.onrender.com/bridge');
-  process.exit(1);
-}
-if (!RELAY_TOKEN) {
-  console.error('RELAY_TOKEN is required and must match the Render environment variable.');
-  process.exit(1);
-}
-
-const canvasClient = new Client({ name: 'canvas-mcp-local-bridge', version: '1.1.0' });
+const canvasClient = new Client({ name: 'canvas-mcp-local-bridge', version: '1.2.0' });
 const dnxPrefixArgs = path.basename(DNX_COMMAND).toLowerCase().startsWith('dotnet') ? ['dnx'] : [];
 
 const stdio = new StdioClientTransport({
@@ -184,11 +170,6 @@ async function autoConnectCanvasApp() {
   if (!CANVAS_STUDIO_URL) return;
 
   const args = parseStudioUrl(CANVAS_STUDIO_URL);
-  if (CANVAS_AUTH_FLOW) args.auth_flow = CANVAS_AUTH_FLOW;
-  if (CANVAS_LOGIN_HINT) args.login_hint = CANVAS_LOGIN_HINT;
-  if (CANVAS_TENANT_ID) args.tenant_id = CANVAS_TENANT_ID;
-  if (CANVAS_FORCE_ACCOUNT_SELECT) args.force_account_select = true;
-
   console.log(`Connecting Canvas MCP to app ${args.app_id} in ${args.environment_id}...`);
   const result = await canvasClient.callTool({ name: 'connect', arguments: args });
   if (result?.isError) {
@@ -211,21 +192,15 @@ async function verifyCanvasSession() {
     return { connected: true, configured };
   } catch (error) {
     connectedToCanvas = false;
-    return {
-      connected: false,
-      configured,
-      error: error instanceof Error ? error.message : String(error),
-    };
+    return { connected: false, configured, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
 async function ensureCanvasSession() {
   const status = await verifyCanvasSession();
   if (status.connected) return status;
-
   console.log('Canvas coauthoring session is unavailable; reconnecting configured app...');
   await autoConnectCanvasApp();
-
   const verified = await verifyCanvasSession();
   if (!verified.connected) {
     throw new Error(`Canvas MCP reconnected but the live Power Apps Studio coauthoring session is still unavailable: ${JSON.stringify(verified.error || verified)}`);
